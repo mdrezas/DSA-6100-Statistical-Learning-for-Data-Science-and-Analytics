@@ -1,0 +1,268 @@
+---
+title: "DSA6100: HW2 (Winter 2021)"
+author: "Author: Md Reza"
+date: "Due Date: March 03, 2021"
+output: html_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##### __1.__ In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
+
+
+__(a)__ Use the rnorm () function to generate a predictor X of length 100, n = as well as a noise vector
+of length 100
+```{r}
+set.seed(1)
+n=100
+X <- rnorm(n)
+noise <- rnorm(n)
+```
+
+
+__(b)__ Generate a response vector Y of length n = 100 according to the model Y=β0+β1X+β2X2+β3X3+ϵ, where β0,β1,β2,β3,β4 are constants of your choice.
+
+ 
+```{r}
+b0=2 
+b1=3 
+b2=-1 
+b3=0.5
+Y = b0 + b1*X + b2*X^2 + b3*X^3 + noise
+```
+
+
+
+__(c)__ Use the regsubsets() function to perform best subset selection in order to choose the best model containing the predictors X,X2,...,X10. What is the best model obtained according to Cp, BIC, and adjusted R2? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the data.frame() function to create a single data set containing both X and Y.
+```{r}
+# Find the best model according to Cp, BIC and Adjusted R Squared
+library(leaps)
+df = data.frame(y = Y, x = X)
+reg.full = regsubsets(y ~ poly(x, 10, raw = T), data = df, nvmax = 10)
+reg.summary = summary(reg.full)
+
+which.min(reg.summary$cp)
+which.min(reg.summary$bic)
+which.max(reg.summary$adjr2)
+
+# Plot C_p, BIC and Adjusted R Squared
+par(mfrow = c(2, 2))
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "C_p", type = "l")
+points(which.min(reg.summary$cp), reg.summary$cp[which.min(reg.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary$adjr2), reg.summary$adjr2[which.max(reg.summary$adjr2)], col = "red", cex = 2, pch = 20)
+
+# We find that C_p, BIC, and Adjusted R2 picks three(3) variables model respectively.
+```
+
+```{r}
+coefficients(reg.full, id = 3)
+# All statistics pick X5 over X3.
+```
+
+
+
+__(d)__ Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)?
+
+```{r}
+reg.fwd = regsubsets(y ~ poly(x, 10, raw = T), data = df, nvmax = 10, method = "forward")
+reg.bwd = regsubsets(y ~ poly(x, 10, raw = T), data = df, nvmax = 10, method = "backward")
+fwd.summary = summary(reg.fwd)
+bwd.summary = summary(reg.bwd)
+which.min(fwd.summary$cp)
+which.min(bwd.summary$cp)
+which.min(fwd.summary$bic)
+which.min(bwd.summary$bic)
+which.max(fwd.summary$adjr2)
+which.max(bwd.summary$adjr2)
+
+
+# Plot the statistics
+par(mfrow = c(3, 2))
+plot(fwd.summary$cp, xlab = "Number of variables", ylab = "Forward C_p", type = "l")
+points(which.min(bwd.summary$cp), bwd.summary$cp[which.min(bwd.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(bwd.summary$cp, xlab = "Number of variables", ylab = "Backward C_p", type = "l")
+points(which.min(bwd.summary$cp), bwd.summary$cp[which.min(bwd.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(fwd.summary$bic, xlab = "Number of variables", ylab = "Forward BIC", type = "l")
+points(which.min(fwd.summary$bic), bwd.summary$bic[which.min(bwd.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(bwd.summary$bic, xlab = "Number of variables", ylab = "Backward BIC", type = "l")
+points(which.min(bwd.summary$bic), bwd.summary$bic[which.min(bwd.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(fwd.summary$adjr2, xlab = "Number of variables", ylab = "Forward Adjusted R^2", type = "l")
+points(which.max(fwd.summary$adjr2), bwd.summary$adjr2[which.max(bwd.summary$adjr2)], col = "red", cex = 2, pch = 20)
+plot(bwd.summary$adjr2, xlab = "Number of variables", ylab = "Backward Adjusted R^2", type = "l")
+points(which.max(bwd.summary$adjr2), bwd.summary$adjr2[which.max(bwd.summary$adjr2)], col = "red", cex = 2, pch = 20)
+# We can see that all statistics pick three(3), variable models. Here are the coefficients:
+```
+
+```{r}
+coefficients(reg.fwd, id = 3)
+coefficients(reg.bwd, id = 3)
+# Here forward & backward stepwise picks X5 over X3.
+```
+
+
+__(e)__ Now fit a lasso model to the simulated data, again using X,X2,...,X10 as predictors. Use cross-validation to select the optimal value of λ. Create plots of the cross-validation error as a function of λ. Report the resulting coefficient estimates, and discuss the results obtained.
+
+```{r}
+library(glmnet)
+df = data.frame(y = Y, x = X)
+xmat = model.matrix(y ~ poly(x, 10, raw = T), data = df)[, -1]
+cv.lasso = cv.glmnet(xmat, Y, alpha = 1)
+best.lambda = cv.lasso$lambda.min
+best.lambda
+plot(cv.lasso)
+
+
+# Next fit the model on entire data using best lambda
+best.model = glmnet(xmat, Y, alpha = 1)
+predict(best.model, s = best.lambda, type = "coefficients")[1:11, ]
+
+
+# The lasso method picks X1, X2, X3 and X5 as variables for the model.
+```
+
+
+__(f)__ Now generate a response vector Y according to the model Y=β0+β7X7+ϵ, and perform best subset selection and the lasso. Discuss the results obtained.
+```{r}
+b0 = 3
+b7 = 7
+Y = b0 + b7 * X^7 + noise
+
+
+# Predict using regsubsets
+df = data.frame(y = Y, x = X)
+reg.full = regsubsets(y ~ poly(x, 10, raw = T), data = df, nvmax = 10)
+reg.summary = summary(reg.full)
+
+
+# Find the model size for best cp, BIC and adjr2
+which.min(reg.summary$cp)
+which.min(reg.summary$bic)
+which.max(reg.summary$adjr2)
+
+coefficients(reg.full, id = 1)
+coefficients(reg.full, id = 2)
+coefficients(reg.full, id = 4)
+# We can see that BIC picks the 1-variable model with matching coefficients, while the Other model picks additional variables.
+```
+
+```{r}
+xmat = model.matrix(y ~ poly(x, 10, raw = T), data = df)[, -1]
+cv.lasso = cv.glmnet(xmat, Y, alpha = 1)
+best.lambda = cv.lasso$lambda.min
+best.lambda
+
+# Next fit the model on entire data using best lambda
+best.model = glmnet(xmat, Y, alpha = 1)
+predict(best.model, s = best.lambda, type = "coefficients")
+
+
+# Lasso also picks the 1-variable model, but the intercept is quite off.
+```
+
+
+
+
+##### __2.__ In this exercise, we will predict the number of applications received using the other variables in the “College” data set.
+
+
+__(a)__ Split the data set into a training and a test set.
+```{r}
+library(ISLR)
+data(College)
+set.seed(11)
+train = sample(1:dim(College)[1], dim(College)[1] / 2)
+test <- -train
+College.train <- College[train, ]
+College.test <- College[test, ]
+```
+
+
+__(b)__ Fit a linear model using least squares on the training set, and report the test error obtained.
+```{r}
+lm.fit = lm(Apps~., data=College.train)
+lm.pred = predict(lm.fit, College.test)
+mean((lm.pred - College.test$Apps)^2)
+# Test RSS is 1026096
+```
+
+
+
+__(c)__ Fit a ridge regression model on the training set, with λ chosen by cross-validation. Report the test error obtained.
+```{r}
+train.mat <- model.matrix(Apps ~ ., data = College.train)
+test.mat <- model.matrix(Apps ~ ., data = College.test)
+grid <- 10 ^ seq(4, -2, length = 100)
+fit.ridge <- glmnet(train.mat, College.train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+cv.ridge <- cv.glmnet(train.mat, College.train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+bestlam.ridge <- cv.ridge$lambda.min
+bestlam.ridge
+
+ridge.pred <- predict(fit.ridge, s = bestlam.ridge, newx = test.mat)
+mean((ridge.pred - College.test$Apps)^2)
+# The test RSS is slightly lower that OLS, 1026069
+```
+
+
+
+__(d)__ Fit a lasso model on the training set, with λ chosen by cross-validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+```{r}
+fit.lasso <- glmnet(train.mat, College.train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+cv.lasso <- cv.glmnet(train.mat, College.train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso
+
+lasso.pred <- predict(fit.lasso, s = bestlam.lasso, newx = test.mat)
+mean((lasso.pred - College.test$Apps)^2)
+# Again, Test RSS is slightly lower that OLS, 1026036.
+```
+
+```{r}
+# The coefficients:
+predict(fit.lasso, s = bestlam.lasso, type = "coefficients")
+```
+
+
+__(e)__ Fit a PCR model on the training set, with M chosen by cross-validation. Report the test error obtained, along with the value of M selected by cross-validation.
+```{r}
+library(pls)
+pcr.fit = pcr(Apps~., data=College.train, scale=TRUE, validation="CV")
+validationplot(pcr.fit, val.type="MSEP")
+
+pcr.pred <- predict(pcr.fit, College.test, ncomp = 10)
+mean((pcr.pred - College.test$Apps)^2)
+# Test RSS for PCR is about 1867486.
+```
+
+
+__(f)__ Fit a PLS model on the training set, with M chosen by cross-validation. Report the test error obtained, along with the value of M selected by cross-validation.
+```{r}
+pls.fit = plsr(Apps~., data=College.train, scale=TRUE, validation="CV")
+validationplot(pls.fit, val.type="MSEP")
+pls.pred <- predict(pls.fit, College.test, ncomp = 10)
+mean((pls.pred - College.test$Apps)^2)
+# Test RSS for PLS is about 1031287.
+```
+
+
+__(g)__ Comment on the results obtained. How accurately can we predict the number of college applications received ? Is there much difference among the test errors resulting from these five approaches ?
+```{r}
+test.avg <- mean(College.test$Apps)
+test.lm.r2 <- 1 - mean((lm.pred - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+test.rgd.r2 <- 1 - mean((ridge.pred - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+test.lasso.r2 <- 1 - mean((lasso.pred - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+test.pcr.r2 <- 1 - mean((pcr.pred - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+test.pls.r2 <- 1 - mean((pls.pred - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+barplot(c(test.lm.r2, test.rgd.r2, test.lasso.r2, test.pcr.r2, test.pls.r2), col="blue", names.arg=c("OLS", "RIDGE", "LASSO", "PCR", "PLS"), main="Test R-Squared")
+
+
+# The plot shows that test R squared for all models is around 0.9 except PCR. Also, PLS has a slightly higher test R2, while PCR has a smaller test R2 that is about 0.8. Therefore, except for PCR, All models would predict college applications with higher accuracy.
+```
+

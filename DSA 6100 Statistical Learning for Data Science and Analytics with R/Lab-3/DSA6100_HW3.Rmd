@@ -1,0 +1,282 @@
+---
+title: "DSA6100: HW3 (Winter 2021)"
+author: "Author: Md Reza"
+date: "Due Date: March 22, 2021"
+output: html_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits=4)
+```
+##### __1.__ We will now perform cross-validation on a simulated data set.Generate a simulated data set as follows:
+
+
+```{r}
+set.seed(1)
+y <- rnorm(100)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+```
+__(a)__ In this data set, what is n and what is p? Write out the model used to generate the data in equation form.
+
+
+*Here* $n = 100$ *and* $p = 2$.
+
+
+*The model is:*  $Y = X - 2X^2 + \varepsilon.$
+
+
+__(b)__ Create a scatterplot of X against Y. Comment on what you find.
+
+ 
+```{r}
+plot(x, y)
+```
+
+*The quadratic plot suggests a curved relation exist where X spread through -2 to 2 and Y spread through -8 to 2.*
+
+
+__(c)__ Set a random seed, and then compute the LOOCV errors that result from fitting the following four models using least squares.
+
+_i._ $Y = \beta_0 + \beta_1X + \varepsilon$
+
+```{r}
+library(boot)
+set.seed(1)
+Data <- data.frame(x, y)
+fit.glm.1 <- glm(y ~ x)
+cv.glm(Data, fit.glm.1)$delta
+```
+
+_ii._ $Y = \beta_0 + \beta_1X + \beta_2X^2 + \varepsilon$
+
+```{r}
+fit.glm.2 = glm(y ~ poly(x, 2))
+cv.glm(Data, fit.glm.2)$delta
+```
+
+_iii._ $Y = \beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3 + \varepsilon$
+
+```{r}
+fit.glm.3 = glm(y ~ poly(x, 3))
+cv.glm(Data, fit.glm.3)$delta
+```
+
+_iv._ $Y = \beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3 + \beta_4X^4 + \varepsilon$
+
+```{r}
+fit.glm.4 = glm(y ~ poly(x, 4))
+cv.glm(Data, fit.glm.4)$delta
+```
+
+
+
+##### __2.__ The Wage data set contains a number of other features not explored in this chapter, such as marital status (maritl), job class (jobclass), and others. Explore the relationships between some of these other predictors and wage, and use non-linear fitting techniques in order to fit flexible models to the data. Create plots of the results obtained,and write a summary of your findings.
+
+```{r}
+library(ISLR)
+set.seed(1)
+```
+
+```{r}
+summary(Wage$maritl)
+summary(Wage$jobclass)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+plot(Wage$maritl, Wage$wage)
+plot(Wage$jobclass, Wage$wage)
+```
+
+*It appears on average married couples earn more money than other groups and Informational jobs have higher wages than Industrial jobs.*
+
+##### Fit Polynomial and Step functions
+
+```{r}
+model.fit1=lm(wage ~ maritl, data = Wage)
+deviance(model.fit1)
+
+model.fit2=lm(wage ~ jobclass, data = Wage)
+deviance(model.fit2)
+
+model.fit3=lm(wage ~ maritl + jobclass, data = Wage)
+deviance(model.fit3)
+
+
+```
+
+##### Fit the wage data on multiple predictors with GAM
+
+```{r}
+library(gam)
+
+model.fit1 = gam(wage ~ year + ns(age, df=4), data=Wage)
+model.fit2 = gam(wage ~ year + ns(age, df=4) + maritl, data=Wage)
+model.fit3 = gam(wage ~ year + ns(age, df=4) + jobclass, data=Wage)
+model.fit4 = gam(wage ~ year + ns(age, df=4) + maritl + jobclass, data=Wage)
+anova(model.fit1, model.fit2, model.fit3, model.fit4)
+```
+
+*It appears _model.fit4_ is the best fits.
+
+
+##### Plot the model
+```{r}
+par(mfrow = c(2, 2))
+plot(model.fit4, se = T, col = "blue")
+```
+
+*The Assumption, Both maritl and jobclass are statistically significant to improve the model for predicting the wage.*
+
+
+
+
+##### __3.__ This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentrationin parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.
+
+
+
+```{r}
+library(MASS)
+attach(Boston)
+set.seed(1)
+```
+
+
+__(a)__ Use the poly() function to fit a cubic polynomial regression to predict nox using dis. Report the regression output, and plot the resulting data and polynomial fits.
+
+```{r}
+fit.lm = lm(nox ~ poly(dis, 3), data = Boston)
+summary(fit.lm)
+```
+
+
+```{r}
+dis.range = range(dis)
+dis.grid = seq(from=dis.range[1], to=dis.range[2], by=0.1)
+pred = predict(fit.lm, newdata = list(dis=dis.grid), se=TRUE)
+
+se.bands <- cbind(pred$fit + 2*pred$se.fit, pred$fit - 2*pred$se.fit)
+plot(dis, nox, xlim=dis.range, cex=0.5, col="darkgrey")
+lines(dis.grid, pred$fit, lwd=2, col="red")
+matlines(dis.grid, se.bands, lwd=1, col="blue", lty=3)
+```
+
+*It appears that the polynomial terms are significant to predict nox using dis. The smooth curve in the plot also shows the data fits very well.*
+
+
+__(b)__ Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+
+```{r}
+rss.err <- rep(0, 10)
+
+for(i in 1:10){
+  fit <- lm(nox ~ poly(dis, i), data=Boston)
+  rss.err[i] <- sum(fit$residuals^2)
+}
+rss.err
+```
+
+```{r}
+plot(rss.err, type='b', xlab = 'Degrees', ylab='RSS')
+```
+
+
+*The train RSS decreased monotonically as the degree of the polynomial decreased.*
+
+__(c)__ Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.
+
+```{r}
+require(boot)
+set.seed(3)
+cv.err = rep(NA, 10)
+
+for (i in 1:10){
+  fit = glm(nox ~ poly(dis, i), data=Boston)
+  cv.err[i] = cv.glm(Boston, fit, K=10)$delta[2]
+}
+cv.err
+```
+
+*Find the minimum cross-validation error.*
+```{r}
+which.min(cv.err)
+```
+
+```{r}
+plot(cv.err, xlab = "Degree", ylab = "Test MSE", type='b')
+points(which.min(cv.err), cv.err[3], col="red", pch=20, cex=2)
+```
+
+*It appears that the best polynomial degree that minimizes test MSE is 3.*
+
+__(d)__ Use the bs() function to fit a regression spline to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.
+
+```{r}
+library(splines)
+fit.spl = lm(nox ~ bs(dis, df = 4, knots = c(4, 7, 11)), data = Boston)
+summary(fit.spl)
+```
+
+```{r}
+pred.spl = predict(fit.spl, list(dis = dis.grid))
+plot(nox ~ dis, data = Boston, col = "darkgrey")
+lines(dis.grid, pred.spl, col = "red", lwd = 2)
+```
+
+*It appears that all terms in spline fit are significant except when the "dis" has values that are greater than 10.*
+
+__(e)__ Now fit a regression spline for a range of degrees of freedom, andplot the resulting fits and report the resulting RSS. Describe the results obtained.
+
+```{r}
+rss.err = rep(NA, 16)
+
+for(i in 3:16){
+  fit.lm = lm(nox ~ bs(dis, df=i), data=Boston)
+  rss.err[i] = sum(fit.lm$residuals^2)
+}
+rss.err
+```
+
+*Find the minimum RSS error.*
+```{r}
+which.min(rss.err)
+```
+
+```{r}
+plot(3:16, rss.err[3:16], xlab = "Degrees of freedom", ylab = "RSS", type='b')
+points(which.min(rss.err), rss.err[14], pch=20, cex=2, col="red")
+```
+
+*Train RSS decrease monotonically until df=14 then increase significantly.*
+
+__(f)__ Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data.Describe your results.
+
+```{r}
+library(boot)
+set.seed(5)
+cv.err = rep(NA, 16)
+
+for (i in 3:16){
+  fit.lm = glm(nox ~ bs(dis, df=i), data=Boston)
+  cv.err[i] <- cv.glm(Boston, fit.lm, K=10)$delta[2]
+}
+cv.err
+```
+
+**Find the optimal cross-validation value.*
+
+```{r}
+which.min(cv.err)
+```
+
+```{r}
+plot(3:16, cv.err[3:16], xlab = "Degrees of freedom", ylab = "Test MSE", type='b')
+points(which.min(cv.err), cv.err[12], pch=20, cex=2, col="red")
+```
+
+*The test MSE indicates that the optimal df selected by cross-validation is 12.*

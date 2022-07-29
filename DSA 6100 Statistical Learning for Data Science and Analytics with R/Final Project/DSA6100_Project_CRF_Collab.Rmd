@@ -1,0 +1,665 @@
+---
+title: "DSA6100: Final Project (Winter 2021)"
+author: "Md Reza, Christopher Kujawa "
+date: "April 26, 2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(warn=-1)
+```
+
+*Load the required packages*
+```{r}
+library(dplyr) # for data manipulation
+library(stringr) # for data manipulation
+library(caret) # for sampling
+library(caTools) # for train/test split
+library(ggplot2) # for data visualization
+library(corrplot) # for correlations
+library(Rtsne) # for tsne plotting
+library(DMwR) # for smote implementation
+library(ROSE)# for ROSE sampling
+library(rpart)# for decision tree model
+library(Rborist)# for random forest model
+library(xgboost) # for xgboost model
+library(randomForest) # for Random Forest
+library(e1071) # for SVM
+library(jsonlite) # for reading JSON file 
+library(neuralnet) # for building neuralnet model
+library(grid)
+library(data.table) # for enhancing data frame
+suppressMessages(library(DataExplorer))
+suppressMessages(library(reshape2))
+suppressMessages(library("gridExtra"))
+```
+
+
+#Set the work directory and read the data
+
+```{r}
+setwd("C:\\Users\\mreza6\\Documents\\MD_Docs\\WSU\\Winter 2021\\R\\Final Project")
+df_cc <- read.csv("creditcard.csv")
+```
+# Data Exploration
+
+*Get the columns & rows count*
+
+```{r}
+dim(df_cc)
+```
+
+*Get the column's name*
+```{r}
+names(df_cc)
+```
+
+*Get the top 5 rows*
+```{r}
+head(df_cc,5)
+```
+
+*Check the class imbalance*
+```{r}
+table(df_cc$Class)
+
+prop.table(table(df_cc$Class))
+```
+
+*Get the variance and standard deviation of credit card fraud amount*
+```{r}
+var(df_cc$Amount)
+
+sd(df_cc$Amount)
+```
+
+*Get the summary of credit card fraud data*
+```{r}
+summary(df_cc$Amount)
+```
+
+*Here we have mean = 0 because the masked variables in this dataset are already PCA transformed.* 
+
+
+# Data Preparation
+
+##### Handling missing values
+
+
+*Look for missing values*  
+```{r}
+introduce(df_cc)
+plot_intro(df_cc)
+```
+
+*Determined if there any other missing values*
+
+```{r}
+for (Var in names(df_cc)) {
+    missing <- sum(is.na(df_cc[,Var]))
+    if (missing > 0) {
+        print(c(Var,missing))
+    }
+}
+```
+
+
+*Remove NULL values*
+```{r}
+data=na.omit((data))
+```
+
+# Data Transformation
+
+*Using scale() function scale the Amount variable*
+
+```{r}
+df_cc$Amount=scale(df_cc$Amount)
+df_scaled=df_cc[,-c(1)]
+head(df_scaled)
+```
+
+##### Creating factor for Data Visualization
+```{r}
+df_cc_viz <- df_cc %>%
+     mutate(Class = as.factor(Class))
+levels(df_cc_viz$Class) <- c('Genuine', 'Fraud')
+table(df_cc_viz$Class)
+```
+
+
+##### Creating factor for Data Modeling
+```{r}
+df_cc$Class <- as.factor(df_cc$Class)
+glimpse(df_cc)
+```
+
+*visualize the factored class attributes*
+```{r}
+ggplot(df_cc_viz)+
+     geom_bar(aes(x = Class, fill = Class))+ggtitle("Genuine vs Fraudulent Transactions")
+```
+
+##### Under sampling and split datasets based on target variable "Class"
+
+*To avoid possible risk with the loss of information (that includes using 492 fraudulent transactions with 284,315 non-fraudulent transactions) this data set is broken down based on the target variable "Class." We also created a new data dataset with a limited number of fraudulent and genuine transactions so that we will have a consistency between the fraudulent and genuine transactions' ratio and that would also improve the models' accuracy as well.*
+
+
+
+```{r}
+fraud_class <- df_cc %>%
+  filter(Class == 1)
+split <- sample(1:nrow(fraud_class), 350)
+fraud_class_new <- fraud_class[split,]
+genuine_class <- df_cc %>%
+  filter(Class == 0)
+random <- sample(1:nrow(genuine_class),984)
+genuine_class <- genuine_class[random,]
+genuine_class_new <- genuine_class[1:700,]
+```
+
+##### Combing both of the data to get one data to work with
+```{r}
+df_cc_new <- rbind(fraud_class_new, genuine_class_new)
+df_cc_new <- df_cc_new[sample(1:nrow(df_cc_new)),]
+```
+
+
+*Create two different datasets with $Genuine & $Fraud class*
+
+```{r}
+fraud_Data <- subset(df_cc_viz,Class=='Fraud')
+real_Data <- subset(df_cc_viz,Class=='Genuine')
+```
+
+# Data Visualization
+
+
+*Explore if fraudulent transaction occur on a specific time of a day*
+
+
+```{r}
+df_cc_viz_new<-na.omit(read.csv("creditcard.csv"))
+df_cc_viz_new$night_trans <- as.factor((floor(df_cc_viz_new$Time/60/60)%%24 <= 9)*1)
+```
+
+*Split the fraudulent and genuine transaction by night and day*
+
+```{r}
+
+toPlot <- df_cc_viz_new
+toPlot$factClass <- as.factor(df_cc_viz_new$Class)
+toPlot <- table(toPlot$night_trans, toPlot$factClass)
+toPlot <- melt(toPlot)
+toPlot$value[toPlot$Var2==0] = toPlot$value[toPlot$Var2==0]/sum(toPlot$value[toPlot$Var2==0])
+toPlot$value[toPlot$Var2==1] = toPlot$value[toPlot$Var2==1]/sum(toPlot$value[toPlot$Var2==1])
+names(toPlot) <- c("IsNight", "Fraud", "Percentage")
+toPlot$Fraud <-as.factor(toPlot$Fraud)
+ggplot(toPlot, aes(x=Fraud, y=Percentage, fill=Fraud))+geom_bar(stat="identity")+
+  facet_grid(~IsNight)+
+  ggtitle("Division of transactions at day vs at night")+
+  scale_fill_discrete(name="Genuine (0) | Fraud (1)")
+```
+
+
+*During the daytime the ratio of Genuine transactions is higher compare to fraudulent transactions .*
+
+
+*While during the night time the ratio of Fraudulent transactions is higher compare to Genuine transactions .*
+
+
+##### Cumulative % graphs for Genuine and Fraud transaction amounts
+
+```{r}
+tab <- melt(table(df_cc_viz$Amount[df_cc_viz$Class=='Genuine']))
+tab$CummulativePercentage <- cumsum(tab$value) / sum(tab$value) # cumulative Frequency
+names(tab)[1] <- "Amount"
+p5 <- ggplot(tab[tab$Amount<50,], aes(x=Amount, y=CummulativePercentage, color=CummulativePercentage))+
+  geom_line()+ggtitle("Genuine Transactions")
+
+tab <- melt(table(df_cc_viz$Amount[df_cc_viz$Class=='Fraud']))
+tab$CummulativePercentage <- cumsum(tab$value) / sum(tab$value)
+names(tab)[1] <- "Amount"
+p6 <- ggplot(tab[tab$Amount<50,], aes(x=Amount, y=CummulativePercentage, color=CummulativePercentage))+
+  geom_line()+ggtitle("Fraud Transactions")
+
+grid.arrange(p5, p6)
+
+```
+
+*The cumulative frequency in the above histogram seems to have no anomaly at all. So, it is safe to say that the transaction under the amount variable does not have any anomaly.*  
+
+
+##### Exploring if Fraud Transactions are related with amount and time of transaction?
+
+```{r}
+p7<-ggplot(fraud_Data, aes(x=Time, y=Amount)) +
+  geom_point(colour="light blue") + ggtitle("Fraud Transactions")
+
+p8<-ggplot(real_Data, aes(x=Time, y=Amount)) +
+  geom_point(colour="light green")+ggtitle("Genuine Transactions")
+
+grid.arrange(p7, p8)
+```
+
+*Again, we do not see particular anomaly between fraud and Genuine transactions.
+
+
+##### Comparison of mean by Fraudulent and Genuine transactions
+
+```{r}
+skew <- sum(as.numeric(df_cc_viz$Class))/nrow(df_cc_viz)
+mugood <- apply(real_Data[sample(rownames(real_Data), size = as.integer(skew *nrow(df_cc_viz)), replace = T), -c(1, 30, 31)], 2, mean)
+muanom <- apply(fraud_Data[, -c(1, 30, 31)], 2, mean)
+plot(muanom, col = "blue", xlab = "Features", ylab = "Mean")
+lines(muanom, col = "blue", lwd = 2)
+points(mugood, col = "green")
+lines(mugood, col = "green", lwd = 2)
+legend("topright", legend = c("Genuine", "Fraud"), lty = c(1,1), col = c("green", "blue"), lwd = c(2,2))
+```
+
+*From the above chart, we could notice that the mean of fraud transactions is different from the genuine one. The fraudulent transactions have higher fluctuation while the genuine transactions have a normal pattern.* 
+
+
+
+##### Before get in to details first look in to the each variables
+
+```{r}
+boxplot(df_cc_viz[2:29])
+```
+
+*Notice some of the features (i.e. V13, V19, V24) in the above boxplot are symmetrical, Though it seems we have some outliers, but they might not be a problem since they are very few in number.*  
+
+
+```{r}
+common_theme <- theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+*Correlation Map*
+
+*Making a correlation matrix using basic COR function.*
+```{r}
+corr_data <- df_cc
+corr_data$Class <- as.integer(corr_data$Class)
+corr_matrix <- round(cor(corr_data),2)
+head(corr_matrix)
+```
+
+*Melting values using melt function*
+
+```{r}
+melted_corr_matrix <- melt(corr_matrix)
+head(melted_corr_matrix)
+```
+
+```{r}
+correlation_plot <- ggplot(data = melted_corr_matrix) +
+  geom_tile(aes(Var1,Var2, fill=value))+
+  theme(plot.background = element_rect("cornsilk2"),
+        panel.background = element_rect("khaki2"),
+        axis.text.x = element_text(angle = 90),
+        axis.title = element_blank())+
+  scale_fill_gradient2(low = "blue", high = "red", name = "Correlation\nValues", limit = c(-1,1))
+
+correlation_plot
+```
+
+*In the above correlation plot, we could observe that though the Time and Amount variables have some correlations with PCA transformed features (that includes V1 - V28), but the Time and Amount do not have any correlation at all. We also noticed that none of the PCA transformed (V1-V28) have any correlation, which justifies the non-linearity as well.*
+
+
+
+*Distribution of Time attrib by Class*
+```{r}
+df_cc_viz %>%
+  ggplot(aes(x = Time, fill = factor(Class))) + geom_histogram(bins = 100)+
+  labs(x = 'Time in seconds since first transaction', y = 'No. of transactions') +
+  ggtitle('Distribution of time of transaction by class') +
+  facet_grid(Class ~ ., scales = 'free_y') + common_theme
+```
+
+*Distribution of variable ‘Amount’ by class*
+```{r}
+ggplot(df_cc_viz, aes(x = factor(Class), y = Amount)) + geom_boxplot() +
+  labs(x = 'Class', y = 'Amount') +
+  ggtitle("Distribution of transaction amount by class") + common_theme
+
+```
+
+
+# Building the Data Model with GLM, Random Forest, KNN, Naive Bayes, and SVM
+
+##### Train - Same as df_cc_new
+
+```{r}
+train <- df_cc_new
+table(train$Class)
+```
+
+
+##### Create the Test dataset
+
+```{r}
+test_class1 <- fraud_class[-split,]
+test_class2 <- genuine_class[701:984,]
+
+test <- rbind(test_class1, test_class2)
+table(test$Class)
+```
+
+
+# Logistic Regression Model
+
+
+*Run the model with test dataset*
+
+```{r}
+glm.fit <- train(Class~.,data = train, 
+                   trControl = trainControl(method = "repeatedcv", number = 5, repeats = 10))
+glm.fit.pred <- predict(glm.fit, test[,-31])
+glm.fit.conf.matrix <- confusionMatrix(test$Class, glm.fit.pred, mode = "everything", positive = "1")
+glm.fit.conf.matrix
+```
+
+
+*ROC curve to find the area under the curve (AUC) for test dataset*
+```{r}
+roc.curve(test$Class, glm.fit.pred, plotit = TRUE)
+```
+
+*Run the model with whole dataset*
+
+```{r}
+glm.fit.pred.all <- predict(glm.fit, df_cc[,-31])
+glm.fit.conf.matrix.all <- confusionMatrix(df_cc$Class, glm.fit.pred.all, mode = "everything", positive = "1")
+glm.fit.conf.matrix.all
+```
+
+
+*ROC curve to find the area under the curve (AUC) for whole dataset*
+```{r}
+roc.curve(df_cc$Class, glm.fit.pred.all, plotit = TRUE)
+```
+
+*Though the accuracy of both test and whole datasets is the same, still we cannot rely on this accuracy to measure the model fit. As we could observe that the confusion matrix has a large number of false fraud predictions that would cause a number of problems that include the genuine transaction might identify as fraudulent transaction resulting in account blockage. That might impact business reputation and result in loss of customers as well.*
+
+
+# Random Forest
+
+
+*Run the model with test dataset*
+
+
+```{r}
+set.seed(421)
+rf.model <- randomForest(Class~., train, importance = T, nPerm = 4, type = "classification", ntree = 775, mtry = 1)
+rf.pred <- predict(rf.model, test[,-31], type = "class")
+rf.conf.matrix <- confusionMatrix(test$Class, rf.pred, mode = "everything", positive = "1")
+rf.conf.matrix 
+```
+
+*ROC curve to find the area under the curve (AUC) for test dataset*
+```{r}
+roc.curve(test$Class, rf.pred, plotit = TRUE)
+```
+
+*Run the model with whole dataset*
+
+
+```{r}
+plot(margin(rf.model,test$Class))
+rf.pred.all <- predict(rf.model, df_cc[,-31], type = "class")
+rf.conf.matrix.all <- confusionMatrix(df_cc$Class, rf.pred.all, mode = "everything", positive = "1")
+rf.conf.matrix.all
+```
+
+
+```{r}
+plot(margin(rf.model,df_cc$Class))
+varImpPlot(rf.model)
+```
+
+
+*ROC curve to find the area under the curve (AUC) for whole dataset*
+```{r}
+roc.curve(df_cc$Class, rf.pred.all, plotit = TRUE)
+```
+
+
+*The Random Forest is performing well to predict the False-negative so far. But, it also reported a number of genuine transactions under the fraudulent transaction that might impact the business in many ways. Since this dataset is PCA transformed,  it's almost impossible to trace which variables are causing this problem, or else it could have been an easy fix. Anyway, Random Forest is performing well on this dataset so far.*   
+
+
+
+# kNN
+
+*Run the model with test dataset*
+
+```{r}
+set.seed(250)
+knn.ctrl <- trainControl(method = "repeatedcv", repeats = 10, number = 5)
+knn.model <- train(Class~., data = train, method = "knn",preProcess = c("center","scale"), trControl = knn.ctrl, tuneLength = 40)
+knn.pred<- predict(knn.model, test[,-31])
+knn.conf.matrix <- confusionMatrix(test$Class, knn.pred, mode = "everything", positive = "1")
+knn.conf.matrix
+```
+
+
+#### Plotting yields Number of Neighbours Vs accuracy (based on repeated cross validation)
+```{r}
+plot(knn.model)
+```
+
+*ROC curve to find the area under the curve (AUC) for test dataset*
+```{r}
+roc.curve(test$Class, knn.pred, plotit = TRUE)
+```
+
+
+*Run the model with whole dataset*
+
+```{r}
+knn.pred.all <- predict(knn.model, df_cc[,-31])
+knn.conf.matrix.all <- confusionMatrix(df_cc$Class, knn.pred.all, mode = "everything", positive = "1")
+knn.conf.matrix.all
+```
+
+*ROC curve to find the area under the curve (AUC) for whole dataset*
+```{r}
+roc.curve(df_cc$Class, knn.pred.all, plotit = TRUE)
+```
+
+
+*With kNN unlike the Logistic regression model, the accuracy of both test and whole datasets is almost the same, but still, we can not rely on this accuracy to measure the model fit. As we have noticed that the confusion matrix has much higher false fraud predictions that would cause many problems, that include the genuine transaction might fall under fraudulent transaction resulting in account blockage. That might impact business reputation and result in loss of customers as well.*
+
+
+
+# Naive Bayes
+
+*Run the model on test dataset*
+
+```{r}
+set.seed(123)
+nb.iter.model <- naiveBayes(Class~., train, laplace = 1)
+nb.iter.pred <- predict(nb.iter.model, test[,-31])
+nb.conf.matrix <- confusionMatrix(test$Class, nb.iter.pred, mode = "everything", positive = "1")
+nb.conf.matrix
+```
+
+*ROC curve to find the area under the curve (AUC) for test dataset*
+```{r}
+roc.curve(test$Class, nb.iter.pred, plotit = TRUE)
+```
+
+
+*Run the model on whole dataset*
+
+
+```{r}
+nb.iter.model.all <- naiveBayes(Class~., train, laplace = 1)
+nb.iter.pred.all <- predict(nb.iter.model, df_cc[,-31])
+nb.conf.matrix.all <- confusionMatrix(df_cc$Class, nb.iter.pred.all, mode = "everything", positive = "1")
+nb.conf.matrix.all
+```
+
+
+*ROC curve to find the area under the curve (AUC) for whole dataset*
+```{r}
+roc.curve(df_cc$Class, nb.iter.pred.all, plotit = TRUE)
+```
+
+
+# SVM Model
+
+
+*Run the model on test dataset*
+
+```{r}
+set.seed(141)
+gamma <- seq(0,0.1, len = 50)
+cost <- 2^(-5:2)
+svm.param<- expand.grid(cost=cost,gamma=gamma)
+svm.conf.matrix <- NULL
+smv.acc.list <- NULL
+
+for(i in 1:nrow(svm.param)){
+  smv.iret.model <- svm(Class~., data=train,
+                        gamma=svm.param$gamma[i],cost=svm.param$cost[i])
+  iter_pred_svm <- predict(smv.iret.model, test[,-31])
+  svm.conf.matrix <- confusionMatrix(test$Class, iter_pred_svm, mode = "everything", positive = "1")
+  smv.acc.list[i] <- svm.conf.matrix$overall[1]
+}
+```
+
+```{r}
+smv.acc.max <- max(smv.acc.list)
+svm.expandgrid.index <- match(smv.acc.max,smv.acc.list)
+svm.optimal.parameters <- svm.param[svm.expandgrid.index,]
+svm.optimal.parameters
+```
+
+*Run the model on test dataset*
+
+```{r}
+svm.model<- svm(Class~., data = train,
+                 gamma=svm.optimal.parameters$gamma, cost = svm.optimal.parameters$cost)
+svm.pred.model <- predict(svm.model, test[,-31])
+svm.conf.matrix <- confusionMatrix(test$Class, svm.pred.model, mode = "everything", positive = "1")
+svm.conf.matrix
+```
+
+*ROC curve to find the area under the curve (AUC) for test dataset*
+```{r}
+roc.curve(test$Class, svm.pred.model, plotit = TRUE)
+```
+
+
+*Run the model on whole dataset*
+```{r}
+svm.model.all<- svm(Class~., data = train,
+                 gamma=svm.optimal.parameters$gamma, cost = svm.optimal.parameters$cost)
+svm.pred.model.all <- predict(svm.model.all, df_cc[,-31])
+svm.conf.matrix.all <- confusionMatrix(df_cc$Class, svm.pred.model.all, mode = "everything", positive = "1")
+svm.conf.matrix.all
+```
+
+*ROC curve to find the area under the curve (AUC) for whole dataset*
+```{r}
+roc.curve(df_cc$Class, svm.pred.model.all, plotit = TRUE)
+```
+
+
+# Model Selection with FourFoldPlot
+
+
+##### With whole dataset
+
+```{r}
+col <- c("bisque", "skyblue1")
+par(mfrow = c(3,2))
+fourfoldplot(glm.fit.conf.matrix.all$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Logistic Regression: ",round(glm.fit.conf.matrix.all$overall[1]*100),"%",sep=""))
+
+fourfoldplot(knn.conf.matrix.all$table, color = col, conf.level = 0, margin = 1,
+             main = paste("kNN: ",round(knn.conf.matrix.all$overall[1]*100),"%",sep=""))
+
+fourfoldplot(rf.conf.matrix.all$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Random Forest: ",round(rf.conf.matrix.all$overall[1]*100),"%",sep=""))
+
+fourfoldplot(nb.conf.matrix.all$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Naive Bayes: ",round(nb.conf.matrix.all$overall[1]*100),"%",sep=""))
+
+fourfoldplot(svm.conf.matrix.all$table, color = col, conf.level = 0, margin = 1,
+             main = paste("SVM: ",round(svm.conf.matrix.all$overall[1]*100),"%",sep=""))
+```
+
+##### With Test Dataset
+
+```{r}
+col <- c("bisque", "skyblue1")
+par(mfrow = c(3,2))
+fourfoldplot(glm.fit.conf.matrix$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Logistic Regression: ",round(glm.fit.conf.matrix$overall[1]*100),"%",sep=""))
+
+fourfoldplot(knn.conf.matrix$table, color = col, conf.level = 0, margin = 1,
+             main = paste("kNN: ",round(knn.conf.matrix$overall[1]*100),"%",sep=""))
+
+fourfoldplot(rf.conf.matrix$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Random Forest: ",round(rf.conf.matrix$overall[1]*100),"%",sep=""))
+
+fourfoldplot(nb.conf.matrix$table, color = col, conf.level = 0, margin = 1,
+             main = paste("Naive Bayes: ",round(nb.conf.matrix$overall[1]*100),"%",sep=""))
+
+fourfoldplot(svm.conf.matrix$table, color = col, conf.level = 0, margin = 1,
+             main = paste("SVM: ",round(svm.conf.matrix$overall[1]*100),"%",sep=""))
+```
+
+
+#### The fourfold plots above shows that the SVM and Random Forest are performing well.
+
+
+
+#### For the final predictions, let's combined the GLM, Random Forest, KNN, Naive Bayes, SVM and calculate the overall, fraudulent, and genuine transactions' accuracy.
+
+
+```{r}
+models.combined <- (as.integer(knn.pred.all) + as.integer(rf.pred.all) + as.integer(nb.iter.pred.all) + as.integer(glm.fit.pred.all) + as.integer(svm.pred.model.all) - 5)/5
+models.combined <- as.data.table(models.combined)
+pred.final <- ifelse(models.combined > 0.75, 1, 0)
+table.final <- table(actual = df_cc$Class, predicted = pred.final)
+table.final
+```
+
+
+##### The accuracy for overall, fraud, and genuin as follows: 
+```{r}
+accuracy <- (table.final[1,1] + table.final[2,2])/(nrow(df_cc))*100
+table.class <- table(df_cc$Class)
+fraud.accuracy <- table.final[2,2]/table.class[2]*100
+genuin.accuracy <- table.final[1,1]/table.class[1]*100
+```
+
+
+```{r}
+# Overall Accuracy:
+accuracy
+```
+
+
+```{r}
+# Fraud Detection Accuracy:
+fraud.accuracy
+```
+
+
+```{r}
+# Genuine Transaction Detection Accuracy:
+genuin.accuracy
+```
+
+
+
+# Conclusions
+
+#### After all this EDA, Model Building, and Analysis, it seems either SVM and or  Random Forest would be the best option if the intention is to detect fraudulent transactions only. However, the combined average of GLM, Random Forest, KNN, Naive Bayes, and SVM could also provide a good fit with the balance of the fraudulent and genuine class.   
+

@@ -1,0 +1,181 @@
+---
+title: "DSA6100: HW4 (Winter 2021)"
+author: "Author: Md Reza"
+date: "Due Date: April 25, 2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits=5)
+```
+
+##### Load the required library
+```{r}
+library(ISLR)
+library(MASS)
+```
+
+##### __1.__ In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the Auto data set.
+
+__(a)__ Create a binary variable, mpg01, that contains a 1 if mpg contains a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. Note you may find it helpful to use the data.frame() function to create a single data set containing both mpg01 and the other Auto variables.
+
+```{r}
+attach(Auto)
+mpg01 = rep(0, length(mpg))
+mpg01[mpg > median(mpg)] <- 1
+auto = data.frame(Auto, mpg01)
+summary(auto)
+```
+
+
+__(b)__ Explore the data graphically in order to investigate the association between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mpg01? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+#### Correlation
+```{r}
+cor(auto[, -9])
+```
+
+#### Scatterplots
+```{r}
+pairs(auto)
+```
+
+#### Boxplots
+```{r}
+par(mfrow=c(2,3))
+boxplot(cylinders ~ mpg01, data = auto, main = "cylinders vs mpg01")
+boxplot(displacement ~ mpg01, data = auto, main = "displacement vs mpg01")
+boxplot(horsepower ~ mpg01, data = auto, main = "horsepower vs mpg01")
+boxplot(weight ~ mpg01, data = auto, main = "weight vs mpg01")
+boxplot(acceleration ~ mpg01, data = auto, main = "acceleration vs mpg01")
+boxplot(year ~ mpg01, data = auto, main = "year vs mpg01")
+```
+
+
+##### It appears that the scatterplots does not work well as mpg01 has value of "0" and "1". In addition to that it seems the cylinders, weight, displacement, and horsepower have negative correlations wtih mpg. 
+
+
+__(c)__ Split the data into a training set and a test set.
+
+
+```{r}
+train = (year%%2 == 0) 
+test = !train
+auto.train = auto[train, ]
+auto.test = auto[test, ]
+mpg01.test = mpg01[test]
+
+
+nrow(auto.train)
+nrow(auto.test)
+```
+
+
+__(d)__ Perform LDA on the training data in order to predict mpg01using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+#### LDA
+
+```{r}
+lda.fit = lda(mpg01 ~ cylinders + weight + displacement + horsepower, data = Auto, subset = train)
+lda.pred = predict(lda.fit, auto.test)
+mean(lda.pred$class != mpg01.test)
+```
+
+##### The error rate is 12.64%
+
+
+__(e)__ Perform QDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+#### QDA
+
+```{r}
+qda.fit = qda(mpg01 ~ cylinders + weight + displacement + horsepower, data = auto, subset = train)
+qda.pred = predict(qda.fit, auto.test)
+mean(qda.pred$class != mpg01.test)
+```
+
+##### The error rate is 13.19%
+
+
+__(f)__ Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+#### GLM
+
+```{r}
+glm.fit = glm(mpg01 ~ cylinders + weight + displacement + horsepower, data = auto, family = binomial, subset = train)
+glm.probs = predict(glm.fit, auto.test, type = "response")
+glm.pred = rep(0, length(glm.probs))
+glm.pred[glm.probs > 0.5] = 1
+mean(glm.pred != mpg01.test)
+```
+
+##### The error rate is 12.09%
+
+
+__(g)__ Perform KNN on the training data, with several values of K, in order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
+
+
+```{r}
+library(class)
+train_data = cbind(cylinders, weight, displacement, horsepower)[train, ]
+test_data = cbind(cylinders, weight, displacement, horsepower)[test, ]
+train_mpg01 = mpg01[train]
+set.seed(1)
+```
+
+
+#### KNN(k=1)
+
+```{r}
+knn.pred = knn(train_data, test_data, train_mpg01, k = 1)
+mean(knn.pred != mpg01.test)
+```
+
+#### KNN(k=10)
+
+```{r}
+knn.pred = knn(train_data, test_data, train_mpg01, k = 10)
+mean(knn.pred != mpg01.test)
+```
+
+#### KNN(k=100)
+
+```{r}
+knn.pred = knn(train_data, test_data, train_mpg01, k = 100)
+mean(knn.pred != mpg01.test)
+```
+
+
+#### Test error rate for:
+
+#### K =1  : 15.39% 
+#### K =10 : 16.48%
+#### K =100: 14.29%
+
+#### From above result it appears that K = 100 seems to performs well with lowest test error rate of 14.29%.
+
+
+
+
+##### __2.__ Consider a data set {7,10,20,28,35}, perform hierarchical clustering using the single linkage and plot the dendogram to visualize it.
+
+
+```{r}
+library(fastcluster)
+
+# Create a vector with data set {7,10,20,28,35}
+
+data <- c(7, 10, 20, 28, 35)
+
+# perform hierarchical clustering using the single linkage
+
+hc.single =hclust(dist(data), method ="single")
+
+# plot single linkage with dendogram
+
+plot(hc.single , main="Single Linkage ", xlab="", sub="", cex=.9)
+
+```
+

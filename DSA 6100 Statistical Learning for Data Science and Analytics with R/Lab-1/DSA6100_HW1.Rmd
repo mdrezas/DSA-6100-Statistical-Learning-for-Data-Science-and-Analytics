@@ -1,0 +1,217 @@
+---
+title: "DSA6100: HW1 (Winter 2021)"
+author: "Md Reza"
+due date: "February 10, 2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##### __1.__ This question involves the use of multiple linear regression on the Auto data set
+
+
+__(a)__ Produce a scatter plot matrix which includes all of the variables in the data set.
+```{r}
+library(ISLR)
+pairs(Auto)
+```
+
+
+__(b)__ Compute the matrix of correlations between the variables using the function cor(). You will need to exclude the name variable,which is qualitative.
+```{r}
+
+cor(Auto[, names(Auto) !="name"])
+```
+
+
+
+__(c)__ Use the lm() function to perform a multiple linear regression with mpg as the response and all other variables except name asthe predictors. Use the summary() function to print the results.
+```{r}
+lm.fit = lm(mpg ~. -name, data = Auto)
+summary(lm.fit)
+```
+
+
+Comment on the output. For instance:
+
+__i.__ Is there a relationship between the predictors and the response?
+
+*The F-statistics and small p-value suggest that there is some relationship between the predictors and the response variable. Therefore, we reject the _NULL_ hypothesis.*
+
+
+__ii.__ Which predictors appear to have a statistically significant relationship to the response? 
+
+*The p-values and coefficients table indicates that the _displacement_, _weight_, _year_, and _origin_ have a statistically significant relationship with mpg.*
+
+__iii.__ What does the coefficient for the year variable suggest?
+
+*The coefficient for the year variable (0.750773) suggests that for each year, the newer car's fuel efficiency increases by 0.750773.*
+
+
+
+
+__(d)__ Use the plot() function to produce diagnostic plots of the linear regression fit. Comment on any problems you see with the fit.Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+
+```{r}
+par(mfrow=c(2,2))
+plot(lm.fit)
+```
+
+*The residuals plot's strong curve indicates some issues with the fit, and observation 14 from the leverage plot has high leverage.* 
+
+
+
+##### __2.__ This problem involves the Boston data set, which we saw in the lab for this chapter. We will now try to predict per capita crime rate using the other variables in this data set. In other words, per capita crime rate is the response, and the other variables are the predictors.
+
+
+__(a)__ For each predictor, fit a simple linear regression model to predict the response. Describe your results. In which of the models is there a statistically significant association between the predictor and the response? Create some plots to back up your assertions.
+
+```{r}
+library(MASS)
+attach(Boston)
+fit.zn <- lm(crim ~ zn)
+summary(fit.zn)
+fit.indus <- lm(crim ~ indus)
+summary(fit.indus)
+chas <- as.factor(chas)
+fit.chas <- lm(crim ~ chas)
+summary(fit.chas)
+fit.nox <- lm(crim ~ nox)
+summary(fit.nox)
+fit.rm <- lm(crim ~ rm)
+summary(fit.rm)
+fit.age <- lm(crim ~ age)
+summary(fit.age)
+fit.dis <- lm(crim ~ dis)
+summary(fit.dis)
+fit.rad <- lm(crim ~ rad)
+summary(fit.rad)
+fit.tax <- lm(crim ~ tax)
+summary(fit.tax)
+fit.ptratio <- lm(crim ~ ptratio)
+summary(fit.ptratio)
+fit.black <- lm(crim ~ black)
+summary(fit.black)
+fit.lstat <- lm(crim ~ lstat)
+summary(fit.lstat)
+fit.medv <- lm(crim ~ medv)
+summary(fit.medv)
+```
+
+
+*Except for __chas__, the p-value for all predictors is less than 0.05, so we may conclude that other than __chas__ all other predictors are statistically significant. So we may not reject the null hypothesis for the predictor __chas__.*
+
+
+##### Plots to back up the assertions:
+```{r, fig.width=11, fig.height=8}
+par(mfrow=c(3,4))
+plot(Boston$zn, Boston$crim)
+abline(fit.zn, col="blue",lwd=3)
+plot(Boston$indus, Boston$crim)
+abline(fit.indus, col="blue",lwd=3)
+plot(Boston$nox, Boston$crim)
+abline(fit.nox, col="blue",lwd=3)
+plot(Boston$rm, Boston$crim)
+abline(fit.zn, col="blue",lwd=3)
+plot(Boston$age, Boston$crim)
+abline(fit.age, col="blue",lwd=3)
+plot(Boston$dis, Boston$crim)
+abline(fit.dis, col="blue",lwd=3)
+plot(Boston$rad, Boston$crim)
+abline(fit.rad, col="blue",lwd=3)
+plot(Boston$tax, Boston$crim)
+abline(fit.tax, col="blue",lwd=3)
+plot(Boston$ptratio, Boston$crim)
+abline(fit.ptratio, col="blue",lwd=3)
+plot(Boston$black, Boston$crim)
+abline(fit.black, col="blue",lwd=3)
+plot(Boston$lstat, Boston$crim)
+abline(fit.lstat, col="blue",lwd=3)
+plot(Boston$medv, Boston$crim)
+abline(fit.medv, col="blue",lwd=3)
+```
+
+
+##### No effect predictor: __chas__
+```{r, fig.height=4, fig.width=6}
+plot(Boston$chas, Boston$crim)
+abline(fit.chas, col="blue",lwd=3)
+```
+
+
+__(b)__ Fit a multiple regression model to predict the response usingall of the predictors. Describe your results. For which predictors can we reject the null hypothesis 𝐻0:𝛽𝑗=0?
+```{r}
+fit.all <- lm(crim ~ ., data = Boston)
+summary(fit.all)
+```
+
+
+*We may reject the null hypothesis for _zn_, _dis_, _rad_, _black_ and _medv_ as these variables were found to be statistically significant with p-values less than .05.*
+
+
+
+__(c)__ How do your results from (a) compare to your results from (b)?Create a plot displaying the univariate regression coefficients from (a) on the x-axis, and the multiple regression coefficients from (b) on the y-axis. That is, each predictor is displayed as a single point in the plot. Its coefficient in a simple linear regression model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
+```{r}
+
+x = c(coefficients(fit.zn)[2],
+      coefficients(fit.indus)[2],
+      coefficients(fit.chas)[2],
+      coefficients(fit.nox)[2],
+      coefficients(fit.rm)[2],
+      coefficients(fit.age)[2],
+      coefficients(fit.dis)[2],
+      coefficients(fit.rad)[2],
+      coefficients(fit.tax)[2],
+      coefficients(fit.ptratio)[2],
+      coefficients(fit.black)[2],
+      coefficients(fit.lstat)[2],
+      coefficients(fit.medv)[2])
+y = coefficients(fit.all)[2:14]
+plot(x, y, main = "Univariate vs. Multiple Regression Coefficients", xlab = "Univariate", ylab = "Multiple")
+
+```
+
+
+##### __3.__ Question 3. Assume the data X1, X2, and Y are listed as follows.
+
+
+```{r}
+X1 <- c(-0.51,  0.98, -0.41,  0.00, -0.54, -0.76,  0.57, -0.71)
+X1
+X2 <- c(0.48, -0.28, -0.37,  0.15, -0.34,  0.44, -0.96, -0.17)
+X2
+Y <- c(-0.50,  1.43, -0.78,  0.07, -0.95, -0.86,  0.41, -1.10)
+Y
+```
+
+
+__(a)__ Fit linear regression model Y = β^0 + β^1 X^1, show the estimated values of parameters,and R2.Test the null hypothesis 𝐻0:𝛽𝑗=0
+```{r}
+fit.lm1 <- lm(Y ~ X1)
+summary(fit.lm1)
+```
+
+*Estimated values of coefficients β0, β1  are respectively -0.05707 and 1.32135.*
+
+*Multiple R-squared:  0.9423, Adjusted R-squared:  0.9326.* 
+
+*We may reject the null hypothesis H0  for β1 as the p-value is less than 0.05.*
+
+
+
+
+__(b)__ Fit linear regression model Y = β^0 + β^1 X^1 + β^2 X^2,show the estimated values of parameters, and R2.Test the null hypothesis 𝐻0:𝛽𝑗=0
+```{r}
+fit.lm2 <- lm(Y ~ X1+X2)
+summary(fit.lm2)
+```
+
+*Estimated values of coefficients β0, β1, and β2  are respectively 0.04485, 1.52334, and 0.51105.*
+
+*Multiple R-squared:  0.9989, Adjusted R-squared:  0.9985.* 
+
+*We may reject the null hypothesis H0  for β1 & β2  as the p-value is less than 0.05.*
+
